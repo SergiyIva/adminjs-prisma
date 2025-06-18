@@ -12,17 +12,13 @@ const prisma = new PrismaClient();
 /**
  * Test temporarily turned off due to Prisma bug: https://github.com/prisma/prisma/issues/18146
  */
-describe.skip('Resource', () => {
+describe('Resource', () => {
   let resource: Resource;
 
   const data = {
     name: 'Someone',
     email: 'random@email.com',
   };
-
-  beforeAll(async () => {
-    await prisma.$connect();
-  })
 
   beforeEach(async () => {
     resource = new Resource({ model: getModelByName('User'), client: prisma });
@@ -32,13 +28,14 @@ describe.skip('Resource', () => {
     await prisma.post.deleteMany({});
   });
 
-  afterAll(async () => {
-    await prisma.$disconnect();
-  });
-
   describe('.isAdapterFor', () => {
     it('returns true when Prisma model is given', () => {
-      expect(Resource.isAdapterFor({ model: getModelByName('Post'), client: prisma })).toEqual(true);
+      expect(
+        Resource.isAdapterFor({
+          model: getModelByName('Post'),
+          client: prisma,
+        }),
+      ).toEqual(true);
     });
 
     it('returns false for any other kind of resources', () => {
@@ -124,8 +121,12 @@ describe.skip('Resource', () => {
 
       const filter = new Filter(undefined, resource);
       filter.filters = {
-        name: { path: 'name', value: params.name, property: resource.property('name') as BaseProperty },
-      }
+        name: {
+          path: 'name',
+          value: params.name,
+          property: resource.property('name') as BaseProperty,
+        },
+      };
       record = await resource.find(filter);
 
       expect(record[0] && record[0].get('name')).toEqual(data.name);
@@ -134,14 +135,21 @@ describe.skip('Resource', () => {
     });
 
     it('finds by record uuid column', async () => {
-      const uuidResource = new Resource({ model: getModelByName('UuidExample'), client: prisma });
+      const uuidResource = new Resource({
+        model: getModelByName('UuidExample'),
+        client: prisma,
+      });
       const params = await uuidResource.create({ label: 'test' });
       await uuidResource.create({ label: 'another test' });
 
       const filter = new Filter(undefined, uuidResource);
       filter.filters = {
-        id: { path: 'id', value: params.id, property: uuidResource.property('id') as BaseProperty },
-      }
+        id: {
+          path: 'id',
+          value: params.id,
+          property: uuidResource.property('id') as BaseProperty,
+        },
+      };
       record = await uuidResource.find(filter);
 
       expect(record[0] && record[0].get('id')).toEqual(params.id);
@@ -157,7 +165,10 @@ describe.skip('Resource', () => {
 
     beforeEach(async () => {
       user = await resource.create(data);
-      profileResource = new Resource({ model: getModelByName('Profile'), client: prisma });
+      profileResource = new Resource({
+        model: getModelByName('Profile'),
+        client: prisma,
+      });
     });
 
     it('creates new resource', async () => {
