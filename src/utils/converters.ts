@@ -54,7 +54,9 @@ export const convertFilter = (modelFields: DMMF.Model['fields'], filterObject?: 
     if (['boolean', 'number', 'float', 'object', 'array'].includes(filter.property.type())) {
       where[name] = safeParseJSON(filter.value as string);
     } else if (['date', 'datetime'].includes(filter.property.type())) {
-      if (typeof filter.value !== 'string' && filter.value.from && filter.value.to) {
+      if (filter.value === null) {
+        where[name] = { equals: null };
+      } else if (typeof filter.value !== 'string' && filter.value.from && filter.value.to) {
         where[name] = { gte: new Date(filter.value.from), lte: new Date(filter.value.to) };
       } else if (typeof filter.value !== 'string' && filter.value.from) {
         where[name] = { gte: new Date(filter.value.from) };
