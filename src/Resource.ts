@@ -24,6 +24,8 @@ export class Resource extends BaseResource {
 
   protected idProperty: Property;
 
+  protected clientModule?: any;
+
   constructor(args: {
     model: DMMF.Model;
     client: PrismaClient;
@@ -35,6 +37,7 @@ export class Resource extends BaseResource {
     this.model = model;
     this.client = client;
     this.enums = getEnums(clientModule);
+    this.clientModule = clientModule;
     this.manager = this.client[lowerCase(model.name)];
     this.propertiesObject = this.prepareProperties();
     this.idProperty = this.properties().find((p) => p.isId())!;
@@ -66,7 +69,10 @@ export class Resource extends BaseResource {
 
   public async count(filter: Filter): Promise<number> {
     return this.manager.count({
-      where: convertFilter(this.model.fields, filter),
+      where: convertFilter(this.model.fields, filter, {
+        dbProvider: this.databaseType(),
+        clientModule: this.clientModule,
+      }),
     });
   }
 
@@ -85,7 +91,10 @@ export class Resource extends BaseResource {
 
     const orderBy = this.buildSortBy(sort);
     const results = await this.manager.findMany({
-      where: convertFilter(this.model.fields, filter),
+      where: convertFilter(this.model.fields, filter, {
+        dbProvider: this.databaseType(),
+        clientModule: this.clientModule,
+      }),
       skip: offset,
       take: limit,
       orderBy,
