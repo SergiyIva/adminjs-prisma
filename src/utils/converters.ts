@@ -77,19 +77,26 @@ export const convertFilter = (
     // Example: "author.name": { contains: "John" }
     const nameParts = name.split('.');
     if (nameParts.length > 1) {
-      const [relationName, ...nestedParts] = nameParts;
-      // Only support single-level: relation.scalarField
-      if (nestedParts.length !== 1) {
-        return where; // skip multi-level for now
-      }
-      const nestedFieldPath = nestedParts[0];
-      const relationField = modelFields.find((f) => f.name === relationName);
+      const [firstSegment, ...restSegments] = nameParts;
+      const relationField = modelFields.find((f) => f.name === firstSegment);
 
       if (relationField && relationField.kind === 'object' && relationField.relationName) {
-        const linkOp = relationField.isList ? 'some' : 'is';
+        const topLinkOp = relationField.isList ? 'some' : 'is';
         const { value } = filter as any;
 
-        // Build inner operator for the nested scalar field
+        const deepMerge = (target: Record<string, any>, source: Record<string, any>): Record<string, any> => {
+          for (const key of Object.keys(source)) {
+            const sv = source[key];
+            const tv = target[key];
+            if (sv && typeof sv === 'object' && !Array.isArray(sv)) {
+              target[key] = deepMerge(tv && typeof tv === 'object' ? tv : {}, sv);
+            } else {
+              target[key] = sv;
+            }
+          }
+          return target;
+        };
+
         const buildInner = (val: any): Record<string, any> => {
           if (val === null) return { equals: null };
           if (typeof val === 'object') {
@@ -111,51 +118,66 @@ export const convertFilter = (
               return { not: val[`${orPrefix}${MATCHING_PATTERNS.NE}`].toString() };
             }
             if (val[OPERATORS.OR]) return { contains: val[OPERATORS.OR].toString() };
-            // fallback to direct object equality
             return val;
           }
-
           if (typeof val === 'number' || typeof val === 'boolean') {
             return { equals: val };
           }
-
           const strVal = val?.toString?.() ?? String(val);
           if (uuidRegex.test(strVal)) return { equals: strVal };
           return { contains: strVal };
         };
 
-        // OR handling: support {..., or: 'foo'} and prefixed keys like 'or~startsWith'
-        const pushOr = (op: Record<string, any>) => {
-          where.OR = [
-            ...(where.OR || []),
-            { [relationName]: { [linkOp]: { [nestedFieldPath]: op } } },
-          ];
+        const applyNested = (segments: string[], op: Record<string, any>) => {
+          // Build nested where tree
+          const [head, ...tail] = segments;
+          const root: Record<string, any> = { [head]: { [topLinkOp]: {} } };
+          let ptr = root[head][topLinkOp];
+          // For intermediate segments except last, assume to-one ('is') if no metadata
+          for (let i = 0; i < tail.length - 1; i += 1) {
+            const seg = tail[i];
+            ptr[seg] = { is: {} };
+            ptr = ptr[seg].is;
+          }
+          // Last segment gets the operator
+          const last = tail[tail.length - 1];
+          ptr[last] = op;
+          // Deep merge into where
+          where[head] = deepMerge(where[head] || {}, root[head]);
         };
+
+        // OR handling for nested
+        const pushOrNested = (op: Record<string, any>) => {
+          const [head, ...tail] = [firstSegment, ...restSegments];
+          const tree: any = { [head]: { [topLinkOp]: {} } };
+          let ptr = tree[head][topLinkOp];
+          for (let i = 0; i < tail.length - 1; i += 1) {
+            const seg = tail[i];
+            ptr[seg] = { is: {} };
+            ptr = ptr[seg].is;
+          }
+          const last = tail[tail.length - 1];
+          ptr[last] = op;
+          where.OR = [ ...(where.OR || []), tree ];
+        };
+
+        const inner = buildInner(value);
+        applyNested([firstSegment, ...restSegments], inner);
 
         if (typeof value === 'object' && value) {
           const orPrefix = `${OPERATORS.OR}${OPERATOR_SEPARATOR}`;
           if (value[`${orPrefix}${MATCHING_PATTERNS.SW}`]) {
-            pushOr({ startsWith: value[`${orPrefix}${MATCHING_PATTERNS.SW}`].toString() });
+            pushOrNested({ startsWith: value[`${orPrefix}${MATCHING_PATTERNS.SW}`].toString() });
           } else if (value[`${orPrefix}${MATCHING_PATTERNS.EW}`]) {
-            pushOr({ endsWith: value[`${orPrefix}${MATCHING_PATTERNS.EW}`].toString() });
+            pushOrNested({ endsWith: value[`${orPrefix}${MATCHING_PATTERNS.EW}`].toString() });
           } else if (value[`${orPrefix}${MATCHING_PATTERNS.EQ}`]) {
-            pushOr({ equals: value[`${orPrefix}${MATCHING_PATTERNS.EQ}`].toString() });
+            pushOrNested({ equals: value[`${orPrefix}${MATCHING_PATTERNS.EQ}`].toString() });
           } else if (value[`${orPrefix}${MATCHING_PATTERNS.NE}`]) {
-            pushOr({ not: value[`${orPrefix}${MATCHING_PATTERNS.NE}`].toString() });
+            pushOrNested({ not: value[`${orPrefix}${MATCHING_PATTERNS.NE}`].toString() });
           } else if (value[OPERATORS.OR]) {
-            pushOr({ contains: value[OPERATORS.OR].toString() });
+            pushOrNested({ contains: value[OPERATORS.OR].toString() });
           }
         }
-
-        const inner = buildInner(value);
-        // Merge into where for non-OR case
-        where[relationName] = {
-          ...(where[relationName] || {}),
-          [linkOp]: {
-            ...((where[relationName] || {})[linkOp] || {}),
-            [nestedFieldPath]: inner,
-          },
-        };
 
         return where;
       }
