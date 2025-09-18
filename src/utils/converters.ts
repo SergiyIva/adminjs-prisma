@@ -72,7 +72,95 @@ export const convertFilter = (
   const uuidRegex = /^[0-9A-F]{8}-[0-9A-F]{4}-[5|4|3|2|1][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i;
   const { filters = {} } = filterObject;
   const { dbProvider, clientModule } = context;
-  return Object.entries(filters).reduce<{[key: string]: any}>((where, [name, filter]) => {
+  return Object.entries(filters).reduce<{ [key: string]: any }>((where, [name, filter]) => {
+    // Handle relational field filters using dot-notation: relation.field
+    // Example: "author.name": { contains: "John" }
+    const nameParts = name.split('.');
+    if (nameParts.length > 1) {
+      const [relationName, ...nestedParts] = nameParts;
+      // Only support single-level: relation.scalarField
+      if (nestedParts.length !== 1) {
+        return where; // skip multi-level for now
+      }
+      const nestedFieldPath = nestedParts[0];
+      const relationField = modelFields.find((f) => f.name === relationName);
+
+      if (relationField && relationField.kind === 'object' && relationField.relationName) {
+        const linkOp = relationField.isList ? 'some' : 'is';
+        const { value } = filter as any;
+
+        // Build inner operator for the nested scalar field
+        const buildInner = (val: any): Record<string, any> => {
+          if (val === null) return { equals: null };
+          if (typeof val === 'object') {
+            const orPrefix = `${OPERATORS.OR}${OPERATOR_SEPARATOR}`;
+            if (val[MATCHING_PATTERNS.SW]) return { startsWith: val[MATCHING_PATTERNS.SW].toString() };
+            if (val[MATCHING_PATTERNS.EW]) return { endsWith: val[MATCHING_PATTERNS.EW].toString() };
+            if (val[MATCHING_PATTERNS.EQ]) return { equals: val[MATCHING_PATTERNS.EQ].toString() };
+            if (val[MATCHING_PATTERNS.NE]) return { not: val[MATCHING_PATTERNS.NE].toString() };
+            if (val[`${orPrefix}${MATCHING_PATTERNS.SW}`]) {
+              return { startsWith: val[`${orPrefix}${MATCHING_PATTERNS.SW}`].toString() };
+            }
+            if (val[`${orPrefix}${MATCHING_PATTERNS.EW}`]) {
+              return { endsWith: val[`${orPrefix}${MATCHING_PATTERNS.EW}`].toString() };
+            }
+            if (val[`${orPrefix}${MATCHING_PATTERNS.EQ}`]) {
+              return { equals: val[`${orPrefix}${MATCHING_PATTERNS.EQ}`].toString() };
+            }
+            if (val[`${orPrefix}${MATCHING_PATTERNS.NE}`]) {
+              return { not: val[`${orPrefix}${MATCHING_PATTERNS.NE}`].toString() };
+            }
+            if (val[OPERATORS.OR]) return { contains: val[OPERATORS.OR].toString() };
+            // fallback to direct object equality
+            return val;
+          }
+
+          if (typeof val === 'number' || typeof val === 'boolean') {
+            return { equals: val };
+          }
+
+          const strVal = val?.toString?.() ?? String(val);
+          if (uuidRegex.test(strVal)) return { equals: strVal };
+          return { contains: strVal };
+        };
+
+        // OR handling: support {..., or: 'foo'} and prefixed keys like 'or~startsWith'
+        const pushOr = (op: Record<string, any>) => {
+          where.OR = [
+            ...(where.OR || []),
+            { [relationName]: { [linkOp]: { [nestedFieldPath]: op } } },
+          ];
+        };
+
+        if (typeof value === 'object' && value) {
+          const orPrefix = `${OPERATORS.OR}${OPERATOR_SEPARATOR}`;
+          if (value[`${orPrefix}${MATCHING_PATTERNS.SW}`]) {
+            pushOr({ startsWith: value[`${orPrefix}${MATCHING_PATTERNS.SW}`].toString() });
+          } else if (value[`${orPrefix}${MATCHING_PATTERNS.EW}`]) {
+            pushOr({ endsWith: value[`${orPrefix}${MATCHING_PATTERNS.EW}`].toString() });
+          } else if (value[`${orPrefix}${MATCHING_PATTERNS.EQ}`]) {
+            pushOr({ equals: value[`${orPrefix}${MATCHING_PATTERNS.EQ}`].toString() });
+          } else if (value[`${orPrefix}${MATCHING_PATTERNS.NE}`]) {
+            pushOr({ not: value[`${orPrefix}${MATCHING_PATTERNS.NE}`].toString() });
+          } else if (value[OPERATORS.OR]) {
+            pushOr({ contains: value[OPERATORS.OR].toString() });
+          }
+        }
+
+        const inner = buildInner(value);
+        // Merge into where for non-OR case
+        where[relationName] = {
+          ...(where[relationName] || {}),
+          [linkOp]: {
+            ...((where[relationName] || {})[linkOp] || {}),
+            [nestedFieldPath]: inner,
+          },
+        };
+
+        return where;
+      }
+    }
+
     if (['boolean', 'number', 'float', 'object', 'array'].includes(filter.property.type())) {
       where[name] = safeParseJSON(filter.value as string);
     } else if (['date', 'datetime'].includes(filter.property.type())) {
@@ -188,7 +276,7 @@ export const convertFilter = (
         where[name] = raw;
       }
     } else {
-      const { value } = filter
+      const { value } = filter;
       if (typeof value === 'object') {
         if (value[MATCHING_PATTERNS.SW]) {
           where[name] = { startsWith: value[MATCHING_PATTERNS.SW].toString() };
