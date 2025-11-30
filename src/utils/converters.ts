@@ -1,5 +1,5 @@
 /* eslint-disable no-param-reassign */
-import { DMMF } from '@prisma/client/runtime/library.js';
+import type { DMMF } from '@prisma/client/runtime/client';
 import { Filter } from 'adminjs';
 
 import { Property } from '../Property.js';
@@ -158,7 +158,7 @@ export const convertFilter = (
           }
           const last = tail[tail.length - 1];
           ptr[last] = op;
-          where.OR = [ ...(where.OR || []), tree ];
+          where.OR = [...(where.OR || []), tree];
         };
 
         const inner = buildInner(value);

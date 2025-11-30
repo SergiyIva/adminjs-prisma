@@ -1,11 +1,48 @@
-# AdminJS + Prisma Example App
+# AdminJS + Prisma v7 Example App
 
-Steps to run this project:
+This example demonstrates how to use `@adminjs/prisma` with **Prisma v7**.
 
-1. Run `yarn install` command
-2. Run `npx prisma migrate dev` command
-3. Rum `yarn build` command
-4. Run `yarn start` command
+## Prerequisites
+
+- Node.js 20.19+ (required for Prisma v7)
+- PostgreSQL database
+- Environment variable `DATABASE_URL` set
+
+## Steps to run this project:
+
+1. **Install dependencies:**
+   ```bash
+   bun install
+   ```
+
+2. **Generate Prisma Client:**
+   ```bash
+   bun run db:generate
+   ```
+
+3. **Run migrations (if needed):**
+   ```bash
+   bunx prisma migrate dev
+   ```
+
+4. **Build the app:**
+   ```bash
+   bun run build
+   ```
+
+5. **Start the server:**
+   ```bash
+   bun run start
+   ```
+
+## Key Prisma v7 Changes
+
+- Generator changed from `prisma-client-js` to `prisma-client`
+- Client generated to `./src/client-prisma` (inside project, not `node_modules`)
+- Database URL configured via `prisma.config.ts` or adapter
+- `clientModule` parameter is **required** when using with AdminJS
+
+---
 
 I’ve added JSON-field filtering support to your Prisma adapter.
 
@@ -16,7 +53,9 @@ Supports equals, notEquals, contains, startsWith, endsWith on a specific key pat
 Uses Prisma’s JSON path filter API under the hood with correct path syntax for PostgreSQL and MySQL.
 Best-effort “has key” filtering
 Filters rows where the given JSON path is not JSON null.
-Note: Prisma currently does not support true “key existence” filters. This approach approximates “has key” by checking that the value at the path is not JSON null, which may not distinguish “missing” from “null” depending on the connector. This is a known Prisma limitation.
+Note: Prisma currently does not support true “key existence” filters. This approach approximates “has key” by checking
+that the value at the path is not JSON null, which may not distinguish “missing” from “null” depending on the connector.
+This is a known Prisma limitation.
 Key changes
 
 src/utils/converters.ts
@@ -42,7 +81,8 @@ Object formats:
 { path: 'a.b.c', contains: 'abc' }
 { path: 'a.b.c', startsWith: 'abc' }
 { path: 'a.b.c', endsWith: 'xyz' }
-For “hasKey” I use a not: Prisma.JsonNull comparison at the provided path if a Prisma client module is available. Otherwise falls back to not: null.
+For “hasKey” I use a not: Prisma.JsonNull comparison at the provided path if a Prisma client module is available.
+Otherwise falls back to not: null.
 src/Resource.ts
 Persisted clientModule on Resource.
 convertFilter calls now pass context:
@@ -69,12 +109,9 @@ Has key:
 filter.filters = { someJson: { path: 'someJson', value: 'hasKey~a.b.c', property: resource.property('someJson') } }
 Notes and limitations
 
-Prisma does not currently support a true “exists” operator for JSON keys. The “hasKey” implementation works by checking “value at path is not JSON null”, which may not detect keys that exist but have null values, and may behave differently across connectors.
+Prisma does not currently support a true “exists” operator for JSON keys. The “hasKey” implementation works by checking
+“value at path is not JSON null”, which may not detect keys that exist but have null values, and may behave differently
+across connectors.
 Database support
 Advanced JSON filtering is supported on PostgreSQL and MySQL.
 Paths are automatically adapted to your provider (detected via Resource.databaseType()).
-If you’d like, I can also:
-
-Add README examples describing the new JSON filter usage.
-Add tests covering the JSON filter paths and operators for both PostgreSQL and MySQL.
-Would you like me to add docs and tests next?

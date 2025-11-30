@@ -1,4 +1,4 @@
-import { DMMF } from '@prisma/client/runtime/library.js';
+import type { DMMF } from '@prisma/client/runtime/client';
 
 export type ModelManager = {
   [action in DMMF.ModelAction]: (...args: any[]) => Promise<any>;

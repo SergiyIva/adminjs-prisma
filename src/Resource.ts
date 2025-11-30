@@ -3,7 +3,7 @@
 /* eslint-disable no-param-reassign */
 import { BaseResource, Filter, BaseRecord, flat } from 'adminjs';
 import { PrismaClient } from '@prisma/client';
-import { DMMF } from '@prisma/client/runtime/library.js';
+import type { DMMF } from '@prisma/client/runtime/client';
 
 import { Property } from './Property.js';
 import { lowerCase } from './utils/helpers.js';

@@ -1,4 +1,4 @@
-import { DMMF } from '@prisma/client/runtime/library.js';
+import type { DMMF } from '@prisma/client/runtime/client';
 import { BaseProperty, PropertyType } from 'adminjs';
 
 import { Enums } from './types.js';

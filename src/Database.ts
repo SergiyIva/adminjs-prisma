@@ -1,6 +1,6 @@
 /* eslint-disable class-methods-use-this */
-import { Prisma, PrismaClient } from '@prisma/client';
-import { DMMF } from '@prisma/client/runtime/library.js';
+import { PrismaClient } from '@prisma/client';
+import type { DMMF } from '@prisma/client/runtime/client';
 import { BaseDatabase } from 'adminjs';
 
 import { Resource } from './Resource.js';
@@ -19,7 +19,18 @@ export class Database extends BaseDatabase {
   }
 
   public resources(): Array<Resource> {
-    const dmmf = this.clientModule?.Prisma.dmmf.datamodel ?? Prisma.dmmf.datamodel;
+    // In Prisma v7, dmmf must be provided via clientModule
+    if (!this.clientModule?.Prisma?.dmmf) {
+      throw new Error(
+        'clientModule with Prisma.dmmf is required for Prisma v7.\n\n'
+        + 'Usage:\n'
+        + '  import { Prisma, PrismaClient } from "./your-generated-client/client.js";\n'
+        + '  const prisma = new PrismaClient();\n'
+        + '  const db = new Database({ client: prisma, clientModule: { Prisma } });\n\n'
+        + 'See migration guide: https://github.com/SergiyIva/adminjs-prisma/blob/main/PRISMA_V7_MIGRATION.md',
+      );
+    }
+    const dmmf = this.clientModule.Prisma.dmmf.datamodel;
 
     if (!dmmf?.models) return [];
 
@@ -33,7 +44,11 @@ export class Database extends BaseDatabase {
   public static isAdapterFor(args: { client?: PrismaClient, clientModule?: any }): boolean {
     const { clientModule } = args;
 
-    const dmmf = clientModule?.Prisma.dmmf.datamodel ?? Prisma.dmmf.datamodel;
+    // In Prisma v7, dmmf must be provided via clientModule
+    if (!clientModule?.Prisma?.dmmf) {
+      return false;
+    }
+    const dmmf = clientModule.Prisma.dmmf.datamodel;
 
     return dmmf?.models?.length > 0;
   }

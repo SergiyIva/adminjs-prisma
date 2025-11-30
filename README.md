@@ -2,11 +2,19 @@
 
 This is an official [AdminJS](https://github.com/SoftwareBrothers/adminjs) adapter which integrates [Prisma](https://prisma.io/) into AdminJS.
 
+**✨ Now supports Prisma v7!** See [PRISMA_V7_MIGRATION.md](./PRISMA_V7_MIGRATION.md) for upgrade instructions.
+
 ### Installation
 
 - yarn: `yarn add @adminjs/prisma`
 
 - npm: `npm install @adminjs/prisma`
+
+### Supported Prisma Versions
+
+- Prisma v5.x ✅
+- Prisma v6.x ✅  
+- Prisma v7.x ✅
 
 ## Usage
 
